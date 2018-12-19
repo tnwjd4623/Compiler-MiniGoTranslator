@@ -1,45 +1,28 @@
-main       proc 3 2 1
+tmp        proc 1 1 2
+           lod 1 1
+           ldc 100
+           add
+           str 1 1
+           lod 1 1
+           retv
+main       proc 2 2 2
            sym 2 1 1
+           ldc 15
+           str 2 1
            sym 2 2 1
            ldc 0
            str 2 2
-           sym 2 3 1
-           ldc 1000
-           str 2 3
-           ldc 979
-           str 2 1
-$2         nop
-           lod 2 1
-           ldc 0
-           gt
-           fjp $3
-           lod 2 1
-           ldc 100
-           gt
-           fjp $0
            ldp
            lod 2 1
-           call write
-           ujp $1
-$0         nop
+           call read
            ldp
-           lod 2 3
-           call write
-$1         nop
            lod 2 1
-           ldc 2
-           div
-           str 2 1
-           lod 2 2
-           lod 2 1
-           add
+           call tmp
            str 2 2
-           ujp $2
-$3         nop
            ldp
            lod 2 2
            call write
-           end
+           ret
            bgn 0
            ldp
            call main

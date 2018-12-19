@@ -1,0 +1,8 @@
+/MiniGo.interp
+/MiniGo.tokens
+/MiniGoBaseListener.java
+/MiniGoLexer.interp
+/MiniGoLexer.java
+/MiniGoLexer.tokens
+/MiniGoListener.java
+/MiniGoParser.java

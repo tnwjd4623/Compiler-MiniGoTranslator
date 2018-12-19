@@ -19,8 +19,8 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		variables = new ArrayList<HashMap<String, Integer>>();
 		variables.add(new HashMap<String, Integer>());
 		variables.add(new HashMap<String, Integer>());
-		localNum = 2;
-		funcNum = 1;
+		localNum = 1;
+		funcNum = 0;
 		labelNum = 0;
 	}
 	
@@ -28,20 +28,19 @@ public class UCodeGenListener extends MiniGoBaseListener {
 	public void exitProgram(MiniGoParser.ProgramContext ctx) {
 		StringBuffer buf = new StringBuffer();
 		
-		// 함수 선언
-		for (int i=0; i<ctx.getChild(0).getChildCount(); i++) {
-			if (ctx.getChild(0).getChild(i).getClass().equals(MiniGoParser.Fun_declContext.class)) {
-				buf.append(ucodes.get(ctx.getChild(0).getChild(i)));
-			}
+		// 함수 및 전역 변수 선언
+		// 전역 변수를 먼저 선언해야 하지 않을까?
+		/*
+		 * To-do : 전역변수 선언 가능
+		 * 전역변수의 선언 위치를 함수 전으로 하면 해결될 것 같긴 함.
+		 */
+		for (int i=0; i<ctx.decl().size(); i++) {
+			buf.append(ucodes.get(ctx.decl().get(i)));
 		}
 		
-		buf.append(makeUcode("", "end", null));
+		// 전역변수의 갯수가 0이라서 bgn 인자가 0임.
+		// 전역변수 선언 기능 추가하면 여기도 추가해야 함.
 		buf.append(makeUcode("", "bgn 0", null));
-		
-		// 전역 변수 선언
-		/*
-		 * To-do : 전역 변수 선언
-		 */
 		
 		// main 함수 시작
 		buf.append(makeUcode("", "ldp", null));
@@ -59,7 +58,7 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		}
 	}
 	
-	// exitStmt 및 exitExpr_stmt는 건드리지 말 것
+	// 건드리지 말 것
 	@Override
 	public void exitStmt (MiniGoParser.StmtContext ctx) {
 		ucodes.put(ctx, ucodes.get(ctx.getChild(0)));
@@ -69,6 +68,36 @@ public class UCodeGenListener extends MiniGoBaseListener {
 	public void exitExpr_stmt (MiniGoParser.Expr_stmtContext ctx) {
 		ucodes.put(ctx, ucodes.get(ctx.getChild(0)));
 	}
+	
+	@Override
+	public void exitDecl (MiniGoParser.DeclContext ctx) {
+		ucodes.put(ctx,  ucodes.get(ctx.getChild(0)));
+	}
+	
+	@Override
+	public void exitParam (MiniGoParser.ParamContext ctx) {
+		//ucodes.put(ctx, ucodes.get(ctx.getChild(0)));
+		StringBuffer buf = new StringBuffer();
+		
+		if (ctx.getChildCount() == 1 || ctx.getChildCount() == 2) {
+			variables.get(funcNum).put(ctx.IDENT().getText(), localNum);
+			localNum ++;
+		} else {
+			// 에러 케이스
+			System.out.println("no");
+		}
+		ucodes.put(ctx, buf.toString());
+	}
+	
+	@Override
+	public void exitParams (MiniGoParser.ParamsContext ctx) {
+		StringBuffer buf = new StringBuffer();
+		for (int i=0; i<ctx.getChildCount(); i++) {
+			buf.append(ucodes.get(ctx.getChild(i)));
+		}
+		ucodes.put(ctx, buf.toString());
+	}
+	// 여기까지
 	
 	// expression
 	@Override
@@ -92,10 +121,7 @@ public class UCodeGenListener extends MiniGoBaseListener {
 			// 인자 등록 (ldp)
 			buf.append(makeUcode("", "ldp", null));
 			
-			// ctx.args()를 순회하면서 ucodes에 인자를 넣음
-			/*
-			 * To-do : 
-			 */
+			// ucodes에서 인자를 가져와서 붙여넣음
 			for (int i=0; i<ctx.args().getChildCount(); i++) {
 				buf.append(ucodes.get(ctx.args().getChild(i)));
 			}
@@ -174,14 +200,24 @@ public class UCodeGenListener extends MiniGoBaseListener {
 			case "!":
 			}
 		} else if (isLiteralExpression(ctx)) {
+			// Literal일 경우
 			buf.append(makeUcode("", "ldc", ctx.LITERAL().getText()));
 		} else if (isIdentExpression(ctx)) {
+			// IDENT일 경우
 			String localName = ctx.IDENT().getText();
 			Integer location = variables.get(funcNum).get(localName);
-			
 			buf.append(makeUcode("", "lod", funcNum + " " + location));
+			
+			// 테이블에서 로드해서 append
+			// 만약 찾지 못하면?
+			
+			/*
+			 * To-do : read 함수로 호출하면 ldp 해야 함
+			 * 즉, 변수를 주소로 넘겨주는 부분 구현 필요.
+			 * 배열을 인자로 넘기는 부분과 같음.
+			 */
 		} else {
-			//System.out.println("To-do");
+			System.out.println("To-do");
 			//ucodes.put(ctx, ctx.getText());
 		}
 		ucodes.put(ctx, buf.toString());
@@ -191,13 +227,16 @@ public class UCodeGenListener extends MiniGoBaseListener {
 	public void exitVar_decl(MiniGoParser.Var_declContext ctx) {
 		/*
 		 * To-do : global variable
+		 * 전역 변수를 선언하는 부분
+		 * 지역 변수 선언부를 참고하면 쉬움
+		 * variables (hash table list)에서 0번째가 전역 변수 테이블
 		 */
 		if (isInitDeclaration(ctx)) {
-			//newTexts.put(ctx, ctx.dec_spec().getText() + " " + ctx.IDENT().getText() + " " + ctx.type_spec().getText() + " = " + ctx.LITERAL().getText());
+			
 		} else if (isArrayDeclaration(ctx)) {
-			//newTexts.put(ctx, ctx.dec_spec().getText() + " " + ctx.IDENT().getText() + "[" + ctx.LITERAL().getText() + "] " + ctx.type_spec().getText());
+			
 		} else {
-			//newTexts.put(ctx, ctx.dec_spec().getText() + " " + ctx.IDENT().getText() + " " + ctx.type_spec().getText());
+			
 		}
 	}
 	
@@ -207,23 +246,21 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		StringBuffer buf = new StringBuffer();
 		
 		/*
-		 * To-do : only 1 block can be accepted
+		 * To-do : revise the following rules
+		 * only 1 block can be accepted
 		 * only constant can be accpeted for init declaration
 		 * array cannot be accepted
 		 */
 		if (isInitDeclaration(ctx)) {
-			//newTexts.put(ctx, ctx.dec_spec().getText() + " " + ctx.IDENT().getText() + " " + ctx.type_spec().getText() + " = " + ctx.LITERAL().getText());
 			buf.append(makeUcode("", "sym", funcNum + " " + localNum + " " + tmp_size));
 			buf.append(makeUcode("", "ldc", ctx.LITERAL().getText()));
-			buf.append(makeUcode("", "str", "2 " + localNum));
+			buf.append(makeUcode("", "str", funcNum + " " + localNum));
 			variables.get(funcNum).put(ctx.IDENT().getText(), localNum);
 		} else if (isArrayDeclaration(ctx)) {
 			tmp_size = Integer.parseInt(ctx.getChild(3).toString());
-			//newTexts.put(ctx, ctx.dec_spec().getText() + " " + ctx.IDENT().getText() + "[" + ctx.LITERAL().getText() + "] " + ctx.type_spec().getText());
 			buf.append(makeUcode("", "sym", funcNum + " " + localNum + " " + tmp_size));
 			variables.get(funcNum).put(ctx.IDENT().getText(), localNum);
 		} else {
-			//newTexts.put(ctx, ctx.dec_spec().getText() + " " + ctx.IDENT().getText() + " " + ctx.type_spec().getText());
 			buf.append(makeUcode("", "sym", funcNum + " " + localNum + " " + tmp_size));
 			variables.get(funcNum).put(ctx.IDENT().getText(), localNum);
 		}
@@ -234,40 +271,34 @@ public class UCodeGenListener extends MiniGoBaseListener {
 	
 	@Override
 	public void enterFun_decl(MiniGoParser.Fun_declContext ctx) {
+		// 지역변수 갯수
 		localNum = 1;
+		
+		// 함수 번호를 증가시키고, variable table을 증가시킴.
 		variables.add(new HashMap<String, Integer>());
 		funcNum++;
-		//String funcName = ctx.getChild(1).getText();
 	}
 	
 	@Override
 	public void exitFun_decl(MiniGoParser.Fun_declContext ctx) {
 		StringBuffer buf = new StringBuffer();
 		String funcName = ctx.getChild(1).getText();
-		String params = null;
 		String funcContent = null;
-		
-		if (ctx.getChild(3) == null) {
-			params = "";
-		} else {
-			params = ucodes.get(ctx.getChild(3));
-		}
+	
 		if (ucodes.get(ctx.compound_stmt()) == null) {
 			funcContent = "";
 		} else {
-			//funcContent = newTexts.get(ctx.compound_stmt());
 			funcContent = ucodes.get(ctx.compound_stmt());
 		}
 		
-		/*
-		 * To-do : enable parameters
-		 */
+		// param은 따로 ucode에 붙여넣을 필요가 없다.
 		//buf.append(params);
-		buf.append(makeUcode(funcName, "proc", (localNum-1) + " " + funcNum + " 1"));
+		buf.append(makeUcode(funcName, "proc", (localNum-1) + " " + funcNum + " 2"));
 		buf.append(funcContent);
-		ucodes.put(ctx, buf.toString());
 		
-		//newTexts.put(ctx, "func " + funcName + params + " " + funcContent + "\n");
+		//System.out.println(localNum);
+		
+		ucodes.put(ctx, buf.toString());
 	}
 	
 	@Override
@@ -361,6 +392,24 @@ public class UCodeGenListener extends MiniGoBaseListener {
 			}
 		}
 
+		ucodes.put(ctx, buf.toString());
+	}
+	
+	@Override
+	public void exitReturn_stmt(MiniGoParser.Return_stmtContext ctx) {
+		StringBuffer buf = new StringBuffer();
+		if (ctx.getChildCount() == 1) {
+			buf.append(makeUcode("", "ret", null));
+		} else if (ctx.getChildCount() == 2) {
+			String localName = ctx.expr(0).getText();
+			Integer location = variables.get(funcNum).get(localName);
+			buf.append(makeUcode("", "lod", funcNum + " " + location));
+			buf.append(makeUcode("", "retv", null));
+		} else if (ctx.getChildCount() == 3) {
+			/*
+			 * To-do : return 2 value
+			 */
+		} 
 		ucodes.put(ctx, buf.toString());
 	}
 	

@@ -1,18 +1,14 @@
+func tmp(a int) {
+	a = a + 100
+	return a
+}
+
+
 func main() {
-	var x int
-	var z int = 0
-	var y int = 1000
-	x = 979
+	var x int = 15
+	var b int = 0
+	b = tmp(x)
+	write(b)
 	
-	for x > 0 {
-		if x > 100 {
-			write (x)
-		} else {
-			write (y)
-		}
-		x = x / 2
-		z = z + x
-	}
-	
-	write(z)
+	return
 }
