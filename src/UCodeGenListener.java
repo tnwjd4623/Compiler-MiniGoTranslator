@@ -40,7 +40,7 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		
 		// 전역 변수 선언
 		/*
-		 * To-do : work for global variables
+		 * To-do : 전역 변수 선언
 		 */
 		
 		// main 함수 시작
