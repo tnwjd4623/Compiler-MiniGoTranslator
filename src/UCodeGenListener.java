@@ -28,7 +28,7 @@ public class UCodeGenListener extends MiniGoBaseListener {
 	public void exitProgram(MiniGoParser.ProgramContext ctx) {
 		StringBuffer buf = new StringBuffer();
 		
-		// function declaration here
+		// 함수 선언
 		for (int i=0; i<ctx.getChild(0).getChildCount(); i++) {
 			if (ctx.getChild(0).getChild(i).getClass().equals(MiniGoParser.Fun_declContext.class)) {
 				buf.append(ucodes.get(ctx.getChild(0).getChild(i)));
@@ -38,14 +38,17 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		buf.append(makeUcode("", "end", null));
 		buf.append(makeUcode("", "bgn 0", null));
 		
-		// global variables here
+		// 전역 변수 선언
 		/*
 		 * To-do : work for global variables
 		 */
+		
+		// main 함수 시작
 		buf.append(makeUcode("", "ldp", null));
 		buf.append(makeUcode("", "call", "main"));
 		buf.append(makeUcode("", "end", null));
 		
+		// 결과 출력 및 파일 쓰기 (result.uco)
 		System.out.println(buf.toString());
 		try {
 			BufferedWriter writer = new BufferedWriter(new FileWriter("result.uco"));
@@ -56,6 +59,7 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		}
 	}
 	
+	// exitStmt 및 exitExpr_stmt는 건드리지 말 것
 	@Override
 	public void exitStmt (MiniGoParser.StmtContext ctx) {
 		ucodes.put(ctx, ucodes.get(ctx.getChild(0)));
@@ -66,12 +70,14 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		ucodes.put(ctx, ucodes.get(ctx.getChild(0)));
 	}
 	
+	// expression
 	@Override
 	public void exitExpr (MiniGoParser.ExprContext ctx) {
 		String s1 = null, s2 = null, op = null;
 		StringBuffer buf = new StringBuffer();
 
 		if (isAssignmentExpression(ctx)) {
+			// '=' 연산
 			// example : 'A = 2'
 			
 			String localName = ctx.IDENT().getText();
@@ -82,10 +88,19 @@ public class UCodeGenListener extends MiniGoBaseListener {
 			buf.append(makeUcode("", "str", funcNum + " " + location));
 			
 		} else if (isFunctionCallExpression(ctx)) {
+			// 함수 호출 표현식
+			// 인자 등록 (ldp)
 			buf.append(makeUcode("", "ldp", null));
+			
+			// ctx.args()를 순회하면서 ucodes에 인자를 넣음
+			/*
+			 * To-do : 
+			 */
 			for (int i=0; i<ctx.args().getChildCount(); i++) {
 				buf.append(ucodes.get(ctx.args().getChild(i)));
 			}
+			
+			// call을 이용해 호출
 			buf.append(makeUcode("", "call", ctx.IDENT().getText()));
 		} else if (isBinaryOperation(ctx)) {
 			// example : '1 + 3'
