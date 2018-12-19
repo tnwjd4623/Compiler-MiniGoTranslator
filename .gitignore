@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-/build/
-=======
 # Compiled class file
 *.class
 
@@ -46,4 +43,3 @@ local.properties
 .tern-project
 .springBeans
 .recommenders/
->>>>>>> branch 'master' of https://github.com/cragy0516/MiniGoTranslator.git
