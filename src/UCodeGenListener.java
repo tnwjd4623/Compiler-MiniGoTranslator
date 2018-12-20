@@ -3,7 +3,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTreeProperty;
 
@@ -20,7 +19,7 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		variables.add(new HashMap<String, Integer>());
 		variables.add(new HashMap<String, Integer>());
 		localNum = 1;
-		funcNum = 0;
+		funcNum = 2;
 		labelNum = 0;
 	}
 	
@@ -116,13 +115,33 @@ public class UCodeGenListener extends MiniGoBaseListener {
 			buf.append(s1);
 			buf.append(makeUcode("", "str", funcNum + " " + location));
 			
+		} else if(isArrayAssignment(ctx)) {
+			//배열 '=' 연산
+			// b[5] = 100
+			
+			String localName = ctx.IDENT().getText();
+			
+			s1 = ucodes.get(ctx.expr(0));
+			Integer location = variables.get(funcNum).get(localName);
+			buf.append(s1);
+			
+			buf.append(makeUcode("", "lda", funcNum + " " + location));
+			buf.append(makeUcode("", "add", null));
+			
+			s1 = ucodes.get(ctx.expr(1));
+			buf.append(s1);
+			buf.append(makeUcode("", "sti", null));
+			
+		
 		} else if (isFunctionCallExpression(ctx)) {
+		
 			// 함수 호출 표현식
 			// 인자 등록 (ldp)
 			buf.append(makeUcode("", "ldp", null));
 			
 			// ucodes에서 인자를 가져와서 붙여넣음
-			for (int i=0; i<ctx.args().getChildCount(); i++) {
+			//인자가 여러개일 경우를 생각해서 i는 2씩 증가해야함
+			for (int i=0; i<ctx.args().getChildCount(); i=i+2) {	
 				buf.append(ucodes.get(ctx.args().getChild(i)));
 			}
 			
@@ -202,6 +221,7 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		} else if (isLiteralExpression(ctx)) {
 			// Literal일 경우
 			buf.append(makeUcode("", "ldc", ctx.LITERAL().getText()));
+			
 		} else if (isIdentExpression(ctx)) {
 			// IDENT일 경우
 			String localName = ctx.IDENT().getText();
@@ -216,8 +236,22 @@ public class UCodeGenListener extends MiniGoBaseListener {
 			 * 즉, 변수를 주소로 넘겨주는 부분 구현 필요.
 			 * 배열을 인자로 넘기는 부분과 같음.
 			 */
+		} else if(isArrayExpression(ctx)) {
+			//Array 변수일 경우
+			String localName = ctx.IDENT().getText();
+			
+			s1 = ucodes.get(ctx.expr(0));
+			Integer location = variables.get(funcNum).get(localName);
+			buf.append(s1);
+			
+			buf.append(makeUcode("", "lda", funcNum + " " + location));
+			buf.append(makeUcode("", "add", null));
+			buf.append(makeUcode("", "ldi", null));
+			
+			
+			
 		} else {
-			System.out.println("To-do");
+			//System.out.println("To-do");
 			//ucodes.put(ctx, ctx.getText());
 		}
 		ucodes.put(ctx, buf.toString());
@@ -276,7 +310,7 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		
 		// 함수 번호를 증가시키고, variable table을 증가시킴.
 		variables.add(new HashMap<String, Integer>());
-		funcNum++;
+		
 	}
 	
 	@Override
@@ -444,6 +478,14 @@ public class UCodeGenListener extends MiniGoBaseListener {
 	}
 	private boolean isElseThere(MiniGoParser.If_stmtContext ctx) {
 		return ctx.getChildCount() != 3;
+	}
+	private boolean isArrayAssignment(MiniGoParser.ExprContext ctx) {
+		return (ctx.getChildCount() == 6 && ctx.getChild(4).getText().equals("="));
+	}
+	private boolean isArrayExpression(MiniGoParser.ExprContext ctx) {
+		return ((ctx.getChildCount() == 4) && 
+				(ctx.getChild(1).getText().equals("[")) &&
+				(ctx.getChild(3).getText().equals("]")));
 	}
 	
 	private String makeUcode (String label, String opcode, String operands) {
