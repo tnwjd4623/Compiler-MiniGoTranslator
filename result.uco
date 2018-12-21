@@ -56,6 +56,7 @@ main       proc 5 2 2
            ldi
            call write
            ret
+           end
            bgn 0
            ldp
            call main

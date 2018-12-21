@@ -332,6 +332,7 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		
 		//System.out.println(localNum);
 		
+		buf.append(makeUcode("", "end", null));
 		ucodes.put(ctx, buf.toString());
 	}
 	
