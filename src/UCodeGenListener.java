@@ -445,7 +445,6 @@ public class UCodeGenListener extends MiniGoBaseListener {
 			 */
 		}
 		
-		buf.append(makeUcode("", "end", null));
 		ucodes.put(ctx, buf.toString());
 	}
 	
