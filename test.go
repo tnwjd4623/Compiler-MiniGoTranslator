@@ -1,16 +1,29 @@
-func main() {
-	var b[5] int
-	b[0] = 100
-	b[1] = 99
-	b[2] = 125
-	b[3] = 4
-	b[4] = 1234
+var arr[10] int
 
-	write(b[0])
-	write(b[1])
-	write(b[2])
-	write(b[3])
-	write(b[4])
-	
+func main() {
+	set_arr()
+	show_arr()
+	return
+}
+
+func set_arr() {
+	var i = 0
+	for i=0; i<10; i++ {
+		if i % 2 == 0 {
+			arr[i] = i * 5
+		} else {
+			arr[i] = i
+		}
+	}
+	return
+}
+
+func show_arr() {
+	var i = 0
+	for i=9; i>=0; i-- {
+		write (i)
+		write (arr[i])
+		lf()
+	}
 	return
 }

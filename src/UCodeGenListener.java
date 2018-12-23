@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeProperty;
 
 public class UCodeGenListener extends MiniGoBaseListener {
@@ -12,6 +13,7 @@ public class UCodeGenListener extends MiniGoBaseListener {
 	int localNum;
 	int funcNum;
 	int labelNum;
+	int globalNum;
 	
 	public UCodeGenListener() {
 		ucodes = new ParseTreeProperty<String>();
@@ -19,6 +21,7 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		variables.add(new HashMap<String, Integer>());
 		variables.add(new HashMap<String, Integer>());
 		localNum = 1;
+		globalNum = 1;
 		funcNum = 2;
 		labelNum = 0;
 	}
@@ -34,12 +37,21 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		 * 전역변수의 선언 위치를 함수 전으로 하면 해결될 것 같긴 함.
 		 */
 		for (int i=0; i<ctx.decl().size(); i++) {
-			buf.append(ucodes.get(ctx.decl().get(i)));
+			if(ctx.decl().get(i).fun_decl() != null) {
+				
+				buf.append(ucodes.get(ctx.decl().get(i)));
+			}
 		}
 		
 		// 전역변수의 갯수가 0이라서 bgn 인자가 0임.
 		// 전역변수 선언 기능 추가하면 여기도 추가해야 함.
-		buf.append(makeUcode("", "bgn 0", null));
+		buf.append(makeUcode("", "bgn", "" + (globalNum-1)));
+		
+		for (int i=0; i<ctx.decl().size(); i++) {
+			if(ctx.decl().get(i).var_decl() != null) {
+				buf.append(ucodes.get(ctx.decl().get(i)));
+			}
+		}
 		
 		// main 함수 시작
 		buf.append(makeUcode("", "ldp", null));
@@ -104,35 +116,25 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		String s1 = null, s2 = null, op = null;
 		StringBuffer buf = new StringBuffer();
 
-		if (isAssignmentExpression(ctx)) {
-			// '=' 연산
-			// example : 'A = 2'
-			
-			String localName = ctx.IDENT().getText();
-			s1 = ucodes.get(ctx.expr(0));
-			Integer location = variables.get(funcNum).get(localName);
-			
-			buf.append(s1);
-			buf.append(makeUcode("", "str", funcNum + " " + location));
-			
-		} else if(isArrayAssignment(ctx)) {
-			//배열 '=' 연산
-			// b[5] = 100
-			
+		if(isArrayExpression(ctx)) {
+			// Array 변수일 경우
 			String localName = ctx.IDENT().getText();
 			
-			s1 = ucodes.get(ctx.expr(0));
-			Integer location = variables.get(funcNum).get(localName);
-			buf.append(s1);
+			buf.append(ucodes.get(ctx.expr(0)));
 			
-			buf.append(makeUcode("", "lda", funcNum + " " + location));
+			if (isVariableLocal(localName)) {
+				// 지역 변수
+				Integer location = variables.get(funcNum).get(localName);
+				buf.append(makeUcode("", "lda", funcNum + " " + location));
+			} else {
+				// 전역 변수
+				Integer location = variables.get(0).get(localName);
+				buf.append(makeUcode("", "lda", 1 + " " + location));
+			}
+
 			buf.append(makeUcode("", "add", null));
+			buf.append(makeUcode("", "ldi", null));
 			
-			s1 = ucodes.get(ctx.expr(1));
-			buf.append(s1);
-			buf.append(makeUcode("", "sti", null));
-			
-		
 		} else if (isFunctionCallExpression(ctx)) {
 		
 			// 함수 호출 표현식
@@ -140,13 +142,65 @@ public class UCodeGenListener extends MiniGoBaseListener {
 			buf.append(makeUcode("", "ldp", null));
 			
 			// ucodes에서 인자를 가져와서 붙여넣음
-			//인자가 여러개일 경우를 생각해서 i는 2씩 증가해야함
+			// 인자가 여러개일 경우를 생각해서 i는 2씩 증가해야함
 			for (int i=0; i<ctx.args().getChildCount(); i=i+2) {	
 				buf.append(ucodes.get(ctx.args().getChild(i)));
 			}
 			
 			// call을 이용해 호출
 			buf.append(makeUcode("", "call", ctx.IDENT().getText()));
+		} else if (isLoopExpression(ctx)) {
+			// 반복 식
+			String localName = ctx.expr(0).IDENT().getText();
+			
+			buf.append(ucodes.get(ctx.expr(0)));
+
+			switch (ctx.op.getText()) {
+			case "++":
+				buf.append(makeUcode("", "inc", null));
+				break;
+			case "--":
+				buf.append(makeUcode("", "dec", null));
+				break;
+			default:
+				System.out.println("operation error!");
+				System.exit(0);
+			}
+			
+			if (isVariableLocal(localName)) {
+				// 지역 변수
+				Integer location = variables.get(funcNum).get(localName);
+				buf.append(makeUcode("", "str", funcNum + " " + location));
+			} else {
+				// 전역 변수
+				Integer location = variables.get(0).get(localName);
+				buf.append(makeUcode("", "str", 1 + " " + location));
+			}
+			
+		} else if (isPrefixOperation(ctx)) {
+			// example : '++8', '-3', '!true'
+			/*
+			 * To-do : add some unable prefix operations
+			 */
+			op = ctx.op.getText();
+			s1 = ucodes.get(ctx.expr(0));
+			switch (op) {
+			case "-":
+				buf.append(makeUcode("", "neg", s1));
+				break;
+			case "+":
+				buf.append(s1);
+				break;
+			case "--":
+				buf.append(makeUcode("", "dec", s1));
+				break;
+			case "++":
+				buf.append(makeUcode("", "inc", s1));
+				break;
+			case "!":
+				buf.append(makeUcode("", "not", s1));
+				break;
+			}
 		} else if (isBinaryOperation(ctx)) {
 			// example : '1 + 3'
 			s1 = ucodes.get(ctx.expr(0));
@@ -173,6 +227,11 @@ public class UCodeGenListener extends MiniGoBaseListener {
 				buf.append(s2);
 				buf.append(makeUcode("", "div", null));
 				break;
+			case "%":
+				buf.append(s1);
+				buf.append(s2);
+				buf.append(makeUcode("", "mod", null));
+				break;
 			case ">":
 				buf.append(s1);
 				buf.append(s2);
@@ -188,6 +247,11 @@ public class UCodeGenListener extends MiniGoBaseListener {
 				buf.append(s2);
 				buf.append(makeUcode("", "eq", null));
 				break;
+			case "!=":
+				buf.append(s1);
+				buf.append(s2);
+				buf.append(makeUcode("", "ne", null));
+				break;
 			case ">=":
 				buf.append(s1);
 				buf.append(s2);
@@ -200,24 +264,47 @@ public class UCodeGenListener extends MiniGoBaseListener {
 				break;
 			}
 			
-		} else if (isPrefixOperation(ctx)) {
-			// example : '++8', '-3', '!true'
-			/*
-			 * To-do : add some unable prefix operations
-			 */
-			op = ctx.op.getText();
-			s1 = ucodes.get(ctx.expr(0));
-			switch (op) {
-			case "-":
-				buf.append(makeUcode("", "neg", s1));
-				break;
-			case "+":
-				buf.append(s1);
-				break;
-			case "--":
-			case "++":
-			case "!":
+		} else if (isAssignmentExpression(ctx)) {
+			// '=' 연산
+			// example : 'A = 2'
+			
+			String localName = ctx.IDENT().getText();
+			buf.append(ucodes.get(ctx.expr(0)));
+			
+			if (isVariableLocal(localName)) {
+				// 지역 변수
+				Integer location = variables.get(funcNum).get(localName);
+				buf.append(makeUcode("", "str", funcNum + " " + location));	
+			} else {
+				// 전역 변수
+				Integer location = variables.get(0).get(localName);
+				buf.append(makeUcode("", "str", "1 " + location));	
 			}
+			
+		} else if(isArrayAssignment(ctx)) {
+			//배열 '=' 연산
+			// b[5] = 100
+			
+			String localName = ctx.IDENT().getText();
+			
+			buf.append(ucodes.get(ctx.expr(0)));
+			
+			if (isVariableLocal(localName)) {
+				// 지역 변수
+				Integer location = variables.get(funcNum).get(localName);
+				buf.append(makeUcode("", "lda", funcNum + " " + location));
+				buf.append(makeUcode("", "add", null));
+			} else {
+				// 전역 변수
+				Integer location = variables.get(0).get(localName);
+				buf.append(makeUcode("", "lda", 1 + " " + location));
+				buf.append(makeUcode("", "add", null));
+			}
+			
+			buf.append(ucodes.get(ctx.expr(1)));
+			buf.append(makeUcode("", "sti", null));
+			
+		
 		} else if (isLiteralExpression(ctx)) {
 			// Literal일 경우
 			buf.append(makeUcode("", "ldc", ctx.LITERAL().getText()));
@@ -225,8 +312,16 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		} else if (isIdentExpression(ctx)) {
 			// IDENT일 경우
 			String localName = ctx.IDENT().getText();
-			Integer location = variables.get(funcNum).get(localName);
-			buf.append(makeUcode("", "lod", funcNum + " " + location));
+			
+			if (isVariableLocal(localName)) {
+				// 지역 변수
+				Integer location = variables.get(funcNum).get(localName);
+				buf.append(makeUcode("", "lod", funcNum + " " + location));	
+			} else {
+				// 전역 변수
+				Integer location = variables.get(0).get(localName);
+				buf.append(makeUcode("", "lod", "1 " + location));	
+			}
 			
 			// 테이블에서 로드해서 append
 			// 만약 찾지 못하면?
@@ -236,20 +331,6 @@ public class UCodeGenListener extends MiniGoBaseListener {
 			 * 즉, 변수를 주소로 넘겨주는 부분 구현 필요.
 			 * 배열을 인자로 넘기는 부분과 같음.
 			 */
-		} else if(isArrayExpression(ctx)) {
-			//Array 변수일 경우
-			String localName = ctx.IDENT().getText();
-			
-			s1 = ucodes.get(ctx.expr(0));
-			Integer location = variables.get(funcNum).get(localName);
-			buf.append(s1);
-			
-			buf.append(makeUcode("", "lda", funcNum + " " + location));
-			buf.append(makeUcode("", "add", null));
-			buf.append(makeUcode("", "ldi", null));
-			
-			
-			
 		} else {
 			//System.out.println("To-do");
 			//ucodes.put(ctx, ctx.getText());
@@ -265,13 +346,25 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		 * 지역 변수 선언부를 참고하면 쉬움
 		 * variables (hash table list)에서 0번째가 전역 변수 테이블
 		 */
+		int tmp_size = 1;
+		StringBuffer buf = new StringBuffer();
+		
 		if (isInitDeclaration(ctx)) {
-			
+			buf.append(makeUcode("", "sym", "1 " + globalNum + " " + tmp_size));
+			buf.append(makeUcode("", "ldc", ctx.LITERAL().getText()));
+			buf.append(makeUcode("", "str", "1 " + globalNum));
+			variables.get(0).put(ctx.IDENT().getText(), globalNum);
 		} else if (isArrayDeclaration(ctx)) {
-			
+			tmp_size = Integer.parseInt(ctx.getChild(3).toString());
+			buf.append(makeUcode("", "sym", "1 " + globalNum + " " + tmp_size));
+			variables.get(0).put(ctx.IDENT().getText(), globalNum);
 		} else {
-			
+			buf.append(makeUcode("", "sym", "1 " + globalNum + " " + tmp_size));
+			variables.get(0).put(ctx.IDENT().getText(), globalNum);
 		}
+		globalNum += tmp_size;
+		
+		ucodes.put(ctx, buf.toString());
 	}
 	
 	@Override
@@ -374,6 +467,10 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		int start_loop = labelNum;
 		int end_loop = labelNum + 1;
 		
+		
+		if (ctx.loop_expr() != null) {
+			buf.append(ucodes.get(ctx.loop_expr().start));
+		}
 		buf.append(makeUcode("$"+(labelNum++), "nop", null));
 		
 		if (ctx.loop_expr() != null) {
@@ -383,10 +480,16 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		}
 		buf.append(s1);
 		buf.append(makeUcode("", "fjp", "$" + end_loop));
+		
 		if (ctx.stmt() != null) {
 			s2 = ucodes.get(ctx.stmt());
 			buf.append(s2);
 		}
+		
+		if (ctx.loop_expr() != null) {
+			buf.append(ucodes.get(ctx.loop_expr().loop_expression));
+		}
+		
 		buf.append(makeUcode("", "ujp", "$" + start_loop));
 		buf.append(makeUcode("$"+(labelNum++), "nop", null)); // end of loop
 		
@@ -396,11 +499,12 @@ public class UCodeGenListener extends MiniGoBaseListener {
 	@Override
 	public void exitLoop_expr(MiniGoParser.Loop_exprContext ctx) {
 		StringBuffer buf = new StringBuffer();
-		for (int i=0; i<ctx.getChildCount(); i++) {
-			if (ucodes.get(ctx.getChild(i)) != null) buf.append(ucodes.get(ctx.getChild(i)));
-		}
 
-		ucodes.put(ctx,  buf.toString());
+		//buf.append(ucodes.get(ctx.expr(0))); // 시작 조건
+		buf.append(ucodes.get(ctx.expr(1))); // 종료 조건
+		//buf.append(ucodes.get(ctx.loop_condition()));
+		
+		ucodes.put(ctx, buf.toString());
 	}
 	
 	@Override
@@ -453,7 +557,7 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		return ctx.getChildCount() == 3 && ctx.getChild(1) != ctx.expr(0) && !ctx.getChild(1).getText().equals("=");
 	}
 	private boolean isPrefixOperation(MiniGoParser.ExprContext ctx) {
-		return ctx.getChildCount() == 2 && ctx.getChild(0) == ctx.op;
+		return ctx.getChildCount() == 2 && ctx.getStart() == ctx.op;
 	}
 	private boolean isBracketExpression(MiniGoParser.ExprContext ctx) {
 		return ctx.getChildCount() == 3 && ctx.getChild(1) == ctx.expr(0);
@@ -488,6 +592,23 @@ public class UCodeGenListener extends MiniGoBaseListener {
 		return ((ctx.getChildCount() == 4) && 
 				(ctx.getChild(1).getText().equals("[")) &&
 				(ctx.getChild(3).getText().equals("]")));
+	}
+	private boolean isLoopExpression(MiniGoParser.ExprContext ctx) {
+		return ((ctx.getChildCount() == 2) &&
+				(ctx.getStop() == ctx.op));
+	}
+	
+	private boolean isVariableLocal (String var_name) {
+		if (funcNum != 0 && variables.get(funcNum).containsKey(var_name)) {
+			// local variable
+			return true;
+		} else if (variables.get(0).containsKey(var_name)) {
+			return false;
+		} else {
+			System.out.println("Undeclared identifier");
+			System.exit(0);
+			return false;
+		}
 	}
 	
 	private String makeUcode (String label, String opcode, String operands) {

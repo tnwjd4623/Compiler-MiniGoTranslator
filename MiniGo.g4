@@ -31,11 +31,12 @@ if_stmt		: IF expr stmt
 return_stmt	: RETURN expr
 			| RETURN expr ',' expr
 			| RETURN;
-loop_expr   : expr ';' expr ';' expr ('++'|'--') ;
+loop_expr   : start=expr ';' expr ';' loop_expression=expr ;
 expr		: '(' expr ')' 
 			| IDENT '[' expr ']' 
 			| IDENT '(' args ')' 
 			| FMT '.' IDENT '(' args ')' 
+			| expr op=('++'|'--')
 			| op=('-'|'+'|'--'|'++'|'!') expr 
 			| left=expr op=('*'|'/') right=expr 
 			| left=expr op=('%'|'+'|'-') right=expr 
